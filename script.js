@@ -5,7 +5,7 @@ class Cell {
         this.revealed = false;
         this.mine = false;
         this.diamond = false;
-        this.count = 0;
+        this.adjacentMines = 0;
     }
 
     reveal() {
@@ -20,8 +20,8 @@ class Cell {
         this.diamond = true;
     }
 
-    incrementCount() {
-        this.count++;
+    incrementAdjacentMines() {
+        this.adjacentMines++;
     }
 }
 
@@ -34,10 +34,11 @@ class Minesweeper {
         this.board = [];
         this.score = 0;
         this.highScore = localStorage.getItem('highScore') || 0;
+        this.gameOver = false;
         this.createBoard();
         this.placeMines();
         this.placeDiamonds();
-        this.calculateCounts();
+        this.calculateAdjacentMines();
         this.addEventListeners();
         this.updateScores();
     }
@@ -68,12 +69,13 @@ class Minesweeper {
 
     placeMines() {
         let minesToPlace = this.mines;
+        const minePositions = new Set();
         while (minesToPlace > 0) {
-            const row = Math.floor(Math.random() * this.rows);
-            const col = Math.floor(Math.random() * this.cols);
-
-            if (!this.board[row][col].mine) {
+            const position = this.getRandomPosition();
+            if (!minePositions.has(position)) {
+                const [row, col] = position.split(',').map(Number);
                 this.board[row][col].setMine();
+                minePositions.add(position);
                 minesToPlace--;
             }
         }
@@ -81,35 +83,40 @@ class Minesweeper {
 
     placeDiamonds() {
         let diamondsToPlace = this.diamonds;
-        while (diamondsToPlace > 0) {
-            const row = Math.floor(Math.random() * this.rows);
-            const col = Math.floor(Math.random() * this.cols);
+        const emptyCells = [];
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                if (!this.board[r][c].mine) {
+                    emptyCells.push([r, c]);
+                }
+            }
+        }
+        for (let i = 0; i < diamondsToPlace; i++) {
+            const index = Math.floor(Math.random() * emptyCells.length);
+            const [row, col] = emptyCells.splice(index, 1)[0];
+            this.board[row][col].setDiamond();
+        }
+    }
 
-            if (!this.board[row][col].mine && !this.board[row][col].diamond) {
-                this.board[row][col].setDiamond();
-                diamondsToPlace--;
+    calculateAdjacentMines() {
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                if (this.board[r][c].mine) {
+                    this.incrementAdjacentCells(r, c);
+                }
             }
         }
     }
 
-    calculateCounts() {
-        for (let r = 0; r < this.rows; r++) {
-            for (let c = 0; c < this.cols; c++) {
-                if (this.board[r][c].mine) continue;
-
-                let count = 0;
-                for (let i = -1; i <= 1; i++) {
-                    for (let j = -1; j <= 1; j++) {
-                        if (i === 0 && j === 0) continue;
-                        const newRow = r + i;
-                        const newCol = c + j;
-
-                        if (this.isInBounds(newRow, newCol) && this.board[newRow][newCol].mine) {
-                            count++;
-                        }
-                    }
+    incrementAdjacentCells(row, col) {
+        for (let i = -1; i <= 1; i++) {
+            for (let j = -1; j <= 1; j++) {
+                if (i === 0 && j === 0) continue;
+                const newRow = row + i;
+                const newCol = col + j;
+                if (this.isInBounds(newRow, newCol)) {
+                    this.board[newRow][newCol].incrementAdjacentMines();
                 }
-                this.board[r][c].count = count;
             }
         }
     }
@@ -119,6 +126,8 @@ class Minesweeper {
     }
 
     revealCell(row, col) {
+        if (this.gameOver) return;  // Prevent action if game is over
+
         const cell = this.board[row][col];
         if (cell.revealed) return;
 
@@ -129,16 +138,14 @@ class Minesweeper {
         if (cell.mine) {
             cellElement.classList.add('mine');
             cellElement.textContent = '💣';
-            this.endGame();
+            this.endGame('You hit a mine! Game Over.');
         } else if (cell.diamond) {
             cellElement.classList.add('diamond');
             cellElement.textContent = '💎';
             this.score += 10;
             this.updateScores();
-        } else if (cell.count > 0) {
-            cellElement.textContent = cell.count;
         } else {
-            cellElement.classList.add('safe');
+            cellElement.textContent = cell.adjacentMines > 0 ? cell.adjacentMines : '';
             this.revealAdjacentCells(row, col);
         }
     }
@@ -149,7 +156,6 @@ class Minesweeper {
                 if (i === 0 && j === 0) continue;
                 const newRow = row + i;
                 const newCol = col + j;
-
                 if (this.isInBounds(newRow, newCol) && !this.board[newRow][newCol].revealed) {
                     this.revealCell(newRow, newCol);
                 }
@@ -157,18 +163,20 @@ class Minesweeper {
         }
     }
 
-    updateScores() {
-        document.getElementById('current-score').textContent = this.score;
-        document.getElementById('high-score').textContent = this.highScore;
-    }
-
-    endGame() {
+    endGame(message) {
+        this.gameOver = true;
+        document.getElementById('game-message').textContent = message;
         if (this.score > this.highScore) {
             localStorage.setItem('highScore', this.score);
             this.highScore = this.score;
             this.updateScores();
         }
-        alert('Game Over!');
+        this.disableBoard();
+    }
+
+    disableBoard() {
+        const cells = document.querySelectorAll('.cell');
+        cells.forEach(cell => cell.removeEventListener('click', this.handleClick));
     }
 
     addEventListeners() {
@@ -183,10 +191,22 @@ class Minesweeper {
 
         const resetButton = document.getElementById('reset-btn');
         resetButton.addEventListener('click', () => {
+            document.getElementById('game-message').textContent = '';
             new Minesweeper(this.rows, this.cols, this.mines, this.diamonds);
         });
+    }
+
+    updateScores() {
+        document.getElementById('current-score').textContent = this.score;
+        document.getElementById('high-score').textContent = this.highScore;
+    }
+
+    getRandomPosition() {
+        const row = Math.floor(Math.random() * this.rows);
+        const col = Math.floor(Math.random() * this.cols);
+        return `${row},${col}`;
     }
 }
 
 // Initialize the game with diamonds and mines
-new Minesweeper(10, 10, 10, 5);
+new Minesweeper(10, 10, 15, 50);

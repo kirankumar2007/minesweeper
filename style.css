@@ -39,13 +39,16 @@ body {
     color: white;
 }
 
-.cell.safe {
-    background-color: #fff;
+.cell.diamond {
+    background-color: lightblue;
     color: green;
 }
 
-.cell.diamond {
-    background-color: lightblue;
+#game-message {
+    margin-top: 10px;
+    font-size: 18px;
+    font-weight: bold;
+    color: red;
 }
 
 button {
