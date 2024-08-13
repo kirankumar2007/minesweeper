@@ -4,6 +4,7 @@ class Cell {
         this.col = col;
         this.revealed = false;
         this.mine = false;
+        this.diamond = false;
         this.count = 0;
     }
 
@@ -15,21 +16,30 @@ class Cell {
         this.mine = true;
     }
 
+    setDiamond() {
+        this.diamond = true;
+    }
+
     incrementCount() {
         this.count++;
     }
 }
 
 class Minesweeper {
-    constructor(rows, cols, mines) {
+    constructor(rows, cols, mines, diamonds) {
         this.rows = rows;
         this.cols = cols;
         this.mines = mines;
+        this.diamonds = diamonds;
         this.board = [];
+        this.score = 0;
+        this.highScore = localStorage.getItem('highScore') || 0;
         this.createBoard();
         this.placeMines();
+        this.placeDiamonds();
         this.calculateCounts();
         this.addEventListeners();
+        this.updateScores();
     }
 
     createBoard() {
@@ -65,6 +75,19 @@ class Minesweeper {
             if (!this.board[row][col].mine) {
                 this.board[row][col].setMine();
                 minesToPlace--;
+            }
+        }
+    }
+
+    placeDiamonds() {
+        let diamondsToPlace = this.diamonds;
+        while (diamondsToPlace > 0) {
+            const row = Math.floor(Math.random() * this.rows);
+            const col = Math.floor(Math.random() * this.cols);
+
+            if (!this.board[row][col].mine && !this.board[row][col].diamond) {
+                this.board[row][col].setDiamond();
+                diamondsToPlace--;
             }
         }
     }
@@ -105,13 +128,15 @@ class Minesweeper {
 
         if (cell.mine) {
             cellElement.classList.add('mine');
-            alert('Game Over!');
-            return;
-        }
-
-        if (cell.count > 0) {
+            cellElement.textContent = '💣';
+            this.endGame();
+        } else if (cell.diamond) {
+            cellElement.classList.add('diamond');
+            cellElement.textContent = '💎';
+            this.score += 10;
+            this.updateScores();
+        } else if (cell.count > 0) {
             cellElement.textContent = cell.count;
-            cellElement.classList.add('number');
         } else {
             cellElement.classList.add('safe');
             this.revealAdjacentCells(row, col);
@@ -132,6 +157,20 @@ class Minesweeper {
         }
     }
 
+    updateScores() {
+        document.getElementById('current-score').textContent = this.score;
+        document.getElementById('high-score').textContent = this.highScore;
+    }
+
+    endGame() {
+        if (this.score > this.highScore) {
+            localStorage.setItem('highScore', this.score);
+            this.highScore = this.score;
+            this.updateScores();
+        }
+        alert('Game Over!');
+    }
+
     addEventListeners() {
         const cells = document.querySelectorAll('.cell');
         cells.forEach(cell => {
@@ -144,10 +183,10 @@ class Minesweeper {
 
         const resetButton = document.getElementById('reset-btn');
         resetButton.addEventListener('click', () => {
-            new Minesweeper(this.rows, this.cols, this.mines);
+            new Minesweeper(this.rows, this.cols, this.mines, this.diamonds);
         });
     }
 }
 
-// Initialize the game
-new Minesweeper(10, 10, 10);
+// Initialize the game with diamonds and mines
+new Minesweeper(10, 10, 10, 5);

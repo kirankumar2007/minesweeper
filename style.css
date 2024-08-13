@@ -4,6 +4,10 @@ body {
     background-color: #f0f0f0;
 }
 
+#score-board {
+    margin-bottom: 10px;
+}
+
 #game-board {
     display: grid;
     grid-template-columns: repeat(10, 30px);
@@ -22,7 +26,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
+    font-size: 18px;
 }
 
 .cell.revealed {
@@ -32,14 +36,16 @@ body {
 
 .cell.mine {
     background-color: red;
+    color: white;
 }
 
 .cell.safe {
     background-color: #fff;
+    color: green;
 }
 
-.cell.number {
-    color: #333;
+.cell.diamond {
+    background-color: lightblue;
 }
 
 button {
