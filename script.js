@@ -23,6 +23,10 @@ class Cell {
     incrementAdjacentMines() {
         this.adjacentMines++;
     }
+
+    isEmpty() {
+        return !this.mine && !this.diamond && this.adjacentMines === 0;
+    }
 }
 
 class Minesweeper {
@@ -56,6 +60,7 @@ class Minesweeper {
     renderBoard() {
         const gameBoard = document.getElementById('game-board');
         gameBoard.innerHTML = '';
+        gameBoard.style.gridTemplateColumns = `repeat(${this.cols}, 40px)`;
         for (let r = 0; r < this.rows; r++) {
             for (let c = 0; c < this.cols; c++) {
                 const cell = document.createElement('div');
@@ -91,10 +96,11 @@ class Minesweeper {
                 }
             }
         }
-        for (let i = 0; i < diamondsToPlace; i++) {
+        while (diamondsToPlace > 0 && emptyCells.length > 0) {
             const index = Math.floor(Math.random() * emptyCells.length);
             const [row, col] = emptyCells.splice(index, 1)[0];
             this.board[row][col].setDiamond();
+            diamondsToPlace--;
         }
     }
 
@@ -126,7 +132,7 @@ class Minesweeper {
     }
 
     revealCell(row, col) {
-        if (this.gameOver) return;  // Prevent action if game is over
+        if (this.gameOver) return;
 
         const cell = this.board[row][col];
         if (cell.revealed) return;
@@ -137,16 +143,16 @@ class Minesweeper {
 
         if (cell.mine) {
             cellElement.classList.add('mine');
-            cellElement.textContent = '💣';
             this.endGame('You hit a mine! Game Over.');
         } else if (cell.diamond) {
             cellElement.classList.add('diamond');
-            cellElement.textContent = '💎';
             this.score += 10;
             this.updateScores();
         } else {
             cellElement.textContent = cell.adjacentMines > 0 ? cell.adjacentMines : '';
-            this.revealAdjacentCells(row, col);
+            if (cell.isEmpty()) {
+                this.revealAdjacentCells(row, col);
+            }
         }
     }
 
@@ -180,19 +186,35 @@ class Minesweeper {
     }
 
     addEventListeners() {
-        const cells = document.querySelectorAll('.cell');
-        cells.forEach(cell => {
-            cell.addEventListener('click', (e) => {
-                const row = e.target.dataset.row;
-                const col = e.target.dataset.col;
-                this.revealCell(row, col);
-            });
+        const startButton = document.getElementById('start-btn');
+        startButton.addEventListener('click', () => {
+            const rows = parseInt(document.getElementById('rows').value);
+            const cols = parseInt(document.getElementById('cols').value);
+            const mines = parseInt(document.getElementById('mines').value);
+            const diamonds = parseInt(document.getElementById('diamonds').value);
+            
+            if (rows <= 0 || cols <= 0 || mines < 0 || diamonds < 0) {
+                alert('Invalid input. Please enter valid numbers.');
+                return;
+            }
+
+            new Minesweeper(rows, cols, mines, diamonds);
         });
 
         const resetButton = document.getElementById('reset-btn');
         resetButton.addEventListener('click', () => {
             document.getElementById('game-message').textContent = '';
-            new Minesweeper(this.rows, this.cols, this.mines, this.diamonds);
+            const rows = parseInt(document.getElementById('rows').value);
+            const cols = parseInt(document.getElementById('cols').value);
+            const mines = parseInt(document.getElementById('mines').value);
+            const diamonds = parseInt(document.getElementById('diamonds').value);
+
+            if (rows <= 0 || cols <= 0 || mines < 0 || diamonds < 0) {
+                alert('Invalid input. Please enter valid numbers.');
+                return;
+            }
+
+            new Minesweeper(rows, cols, mines, diamonds);
         });
     }
 
@@ -208,5 +230,12 @@ class Minesweeper {
     }
 }
 
-// Initialize the game with diamonds and mines
-new Minesweeper(10, 10, 15, 50);
+// Initialize the game with default values
+document.addEventListener('DOMContentLoaded', () => {
+    new Minesweeper(
+        parseInt(document.getElementById('rows').value) || 10,
+        parseInt(document.getElementById('cols').value) || 10,
+        parseInt(document.getElementById('mines').value) || 15,
+        parseInt(document.getElementById('diamonds').value) || 50
+    );
+});
