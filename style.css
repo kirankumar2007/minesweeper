@@ -5,8 +5,23 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100vh;
+    min-height: 100vh;
     margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+h1 {
+    margin-bottom: 20px;
+}
+
+#game-settings {
+    margin-bottom: 20px;
+}
+
+#game-settings input {
+    width: 50px;
+    margin-right: 10px;
 }
 
 #game-board {
@@ -15,6 +30,7 @@ body {
     border: 2px solid #ccc;
     border-radius: 5px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
 }
 
 .cell {
@@ -25,49 +41,43 @@ body {
     box-sizing: border-box;
     cursor: pointer;
     transition: background-color 0.3s, transform 0.2s;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    background-size: cover;
+    background-position: center;
 }
 
 .cell.revealed {
     background-color: #d0f0d0;
-    cursor: default;
 }
 
-.cell.mine {
-    background-image: url('images/bomb.png');
-    background-size: cover;
-}
-
-.cell.diamond {
-    background-image: url('images/diamond.png');
-    background-size: cover;
+.cell:not(.revealed):hover {
+    background-color: #d0d0d0;
 }
 
 #game-message {
     font-size: 1.2em;
     margin: 10px 0;
-}
-
-#controls {
-    margin: 10px 0;
-}
-
-input {
-    margin: 0 5px;
-    padding: 5px;
+    height: 1.5em;
 }
 
 button {
     padding: 5px 10px;
     font-size: 1em;
     cursor: pointer;
+    margin: 5px;
 }
 
-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
+#score-board {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 300px;
+    margin-bottom: 10px;
 }
 
 #current-score, #high-score {
     font-weight: bold;
-    margin: 5px;
 }
