@@ -35,6 +35,7 @@ class Minesweeper {
         this.board = [];
         this.score = 0;
         this.highScore = parseInt(localStorage.getItem('highScore')) || 0;
+        this.leaderboard = JSON.parse(localStorage.getItem('leaderboard')) || [];
         this.gameOver = false;
         this.diamondsCollected = 0;
         this.firstClick = true;
@@ -42,6 +43,8 @@ class Minesweeper {
         this.renderBoard();
         this.addEventListeners();
         this.updateScores();
+        this.renderLeaderboard();
+        this.loadSounds();
     }
 
     createBoard() {
@@ -66,17 +69,13 @@ class Minesweeper {
                     cellElement.classList.add('revealed');
                     if (cell.mine) {
                         cellElement.classList.add('mine');
-                        cellElement.textContent = 'M';
                     } else if (cell.diamond) {
                         cellElement.classList.add('diamond');
-                        cellElement.textContent = 'D';
                     } else if (cell.adjacentMines > 0) {
                         cellElement.textContent = cell.adjacentMines;
-                        cellElement.classList.add(`adjacent-${cell.adjacentMines}`);
                     }
                 } else if (cell.flagged) {
-                    cellElement.classList.add('flagged');
-                    cellElement.textContent = 'F';
+                    cellElement.style.backgroundImage = 'url("images/flag.png")';
                 }
 
                 gameBoard.appendChild(cellElement);
@@ -84,104 +83,93 @@ class Minesweeper {
         });
     }
 
-    placeMinesAndDiamonds(safeRow, safeCol) {
-        const totalItems = this.mines + this.diamonds;
-        const flatPositions = this.board.flatMap((row, r) => 
-            row.map((_, c) => [r, c])
-        ).filter(([r, c]) => r !== safeRow || c !== safeCol);
+    placeMinesAndDiamonds(excludeRow, excludeCol) {
+        let availableCells = this.board.flat().filter(cell => cell.row !== excludeRow || cell.col !== excludeCol);
 
-        const shuffled = this.fisherYatesShuffle(flatPositions).slice(0, totalItems);
-
-        shuffled.forEach(([r, c], index) => {
-            if (index < this.mines) {
-                this.board[r][c].mine = true;
-            } else {
-                this.board[r][c].diamond = true;
-            }
-        });
-
-        this.calculateAdjacentMines();
-    }
-
-    fisherYatesShuffle(array) {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
+        for (let i = 0; i < this.mines; i++) {
+            const randomIndex = Math.floor(Math.random() * availableCells.length);
+            const cell = availableCells.splice(randomIndex, 1)[0];
+            cell.mine = true;
         }
-        return array;
-    }
 
-    calculateAdjacentMines() {
-        this.board.forEach((row, r) => {
-            row.forEach((cell, c) => {
-                if (!cell.mine) {
-                    cell.adjacentMines = this.countAdjacentMines(r, c);
+        for (let i = 0; i < this.diamonds; i++) {
+            const randomIndex = Math.floor(Math.random() * availableCells.length);
+            const cell = availableCells.splice(randomIndex, 1)[0];
+            cell.diamond = true;
+        }
+
+        this.board.forEach(row => {
+            row.forEach(cell => {
+                if (!cell.mine && !cell.diamond) {
+                    cell.adjacentMines = this.countAdjacentMines(cell.row, cell.col);
                 }
             });
         });
     }
 
     countAdjacentMines(row, col) {
-        let count = 0;
-        this.getAdjacentCells(row, col).forEach(([r, c]) => {
-            if (this.board[r][c].mine) {
-                count++;
-            }
-        });
-        return count;
+        return this.getNeighbors(row, col).filter(cell => cell.mine).length;
     }
 
-    getAdjacentCells(row, col) {
-        const adj = [];
-        for (let r = row - 1; r <= row + 1; r++) {
-            for (let c = col - 1; c <= col + 1; c++) {
-                if (r >= 0 && r < this.rows && c >= 0 && c < this.cols && !(r === row && c === col)) {
-                    adj.push([r, c]);
+    getNeighbors(row, col) {
+        const neighbors = [];
+        for (let r = -1; r <= 1; r++) {
+            for (let c = -1; c <= 1; c++) {
+                if (r === 0 && c === 0) continue;
+                const neighborRow = row + r;
+                const neighborCol = col + c;
+                if (neighborRow >= 0 && neighborRow < this.rows && neighborCol >= 0 && neighborCol < this.cols) {
+                    neighbors.push(this.board[neighborRow][neighborCol]);
                 }
             }
         }
-        return adj;
+        return neighbors;
     }
 
     revealCell(row, col) {
         const cell = this.board[row][col];
 
-        if (cell.revealed || cell.flagged) return;
-        
-        if (this.firstClick) {
-            this.firstClick = false;
-            this.placeMinesAndDiamonds(row, col);
-        }
-
-        cell.reveal();
-        if (cell.mine) {
-            this.gameOver = true;
-            this.showGameOver(false);
-        } else if (cell.diamond) {
-            this.score++;
-            this.diamondsCollected++;
-        } else if (cell.adjacentMines === 0) {
-            this.revealAdjacentCells(row, col);
-        }
-
-        this.checkWin();
-        this.renderBoard();
-        this.updateScores();
-    }
-
-    revealAdjacentCells(row, col) {
-        this.getAdjacentCells(row, col).forEach(([r, c]) => {
-            if (!this.board[r][c].revealed) {
-                this.revealCell(r, c);
+        if (cell.reveal() && !this.gameOver) {
+            this.playSound('reveal');
+            if (this.firstClick) {
+                this.firstClick = false;
+                this.placeMinesAndDiamonds(row, col);
+                this.renderBoard();
             }
-        });
+
+            if (cell.mine) {
+                this.playSound('explosion');
+                this.endGame(false);
+                return;
+            } else if (cell.diamond) {
+                this.playSound('collect');
+                this.diamondsCollected++;
+                this.score += 100;
+            }
+
+            if (cell.adjacentMines === 0) {
+                this.getNeighbors(row, col).forEach(neighbor => this.revealCell(neighbor.row, neighbor.col));
+            }
+
+            this.renderBoard();
+            this.updateScores();
+
+            if (this.checkWin()) {
+                this.endGame(true);
+            }
+        }
     }
 
     checkWin() {
-        if (this.diamondsCollected === this.diamonds) {
-            this.gameOver = true;
-            this.updateHighScore();
-            this.showGameOver(true);
+        return this.diamondsCollected === this.diamonds && this.board.flat().every(cell => cell.revealed || cell.mine || cell.diamond);
+    }
+
+    endGame(won) {
+        this.gameOver = true;
+        document.getElementById('game-message').textContent = won ? 'You Win!' : 'Game Over!';
+        this.updateHighScore();
+        if (won) {
+            this.updateLeaderboard();
         }
     }
 
@@ -197,63 +185,76 @@ class Minesweeper {
         }
     }
 
-    showGameOver(win) {
-        const message = document.getElementById('game-message');
-        if (win) {
-            message.textContent = 'You win!';
-        } else {
-            message.textContent = 'Game Over';
-        }
+    updateLeaderboard() {
+        this.leaderboard.push(this.score);
+        this.leaderboard.sort((a, b) => b - a);
+        this.leaderboard = this.leaderboard.slice(0, 5);
+        localStorage.setItem('leaderboard', JSON.stringify(this.leaderboard));
+        this.renderLeaderboard();
     }
 
-    resetGame() {
+    renderLeaderboard() {
+        const leaderboardList = document.getElementById('leaderboard-list');
+        leaderboardList.innerHTML = '';
+        this.leaderboard.forEach(score => {
+            const li = document.createElement('li');
+            li.textContent = score;
+            leaderboardList.appendChild(li);
+        });
+    }
+
+    addEventListeners() {
+        const gameBoard = document.getElementById('game-board');
+        gameBoard.addEventListener('click', event => {
+            if (event.target.classList.contains('cell') && !this.gameOver) {
+                const row = parseInt(event.target.dataset.row);
+                const col = parseInt(event.target.dataset.col);
+                this.revealCell(row, col);
+            }
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            this.startNewGame();
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            this.startNewGame();
+        });
+    }
+
+    startNewGame() {
+        const rows = parseInt(document.getElementById('rows').value);
+        const cols = parseInt(document.getElementById('cols').value);
+        const mines = parseInt(document.getElementById('mines').value);
+        const diamonds = parseInt(document.getElementById('diamonds').value);
+
+        this.rows = rows;
+        this.cols = cols;
+        this.mines = mines;
+        this.diamonds = diamonds;
         this.score = 0;
-        this.diamondsCollected = 0;
         this.gameOver = false;
         this.firstClick = true;
+        this.diamondsCollected = 0;
+
         this.createBoard();
         this.renderBoard();
         this.updateScores();
         document.getElementById('game-message').textContent = '';
     }
 
-    addEventListeners() {
-        document.getElementById('game-board').addEventListener('click', (e) => {
-            if (this.gameOver) return;
+    loadSounds() {
+        this.sounds = {
+            reveal: new Audio('sounds/reveal.wav'),
+            explosion: new Audio('sounds/explosion.wav'),
+            collect: new Audio('sounds/collect.wav')
+        };
+    }
 
-            const target = e.target;
-            const row = parseInt(target.dataset.row);
-            const col = parseInt(target.dataset.col);
-
-            if (!isNaN(row) && !isNaN(col)) {
-                this.revealCell(row, col);
-            }
-        });
-
-        document.getElementById('game-board').addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            if (this.gameOver) return;
-
-            const target = e.target;
-            const row = parseInt(target.dataset.row);
-            const col = parseInt(target.dataset.col);
-
-            if (!isNaN(row) && !isNaN(col)) {
-                const cell = this.board[row][col];
-                if (cell.toggleFlag()) {
-                    this.renderBoard();
-                }
-            }
-        });
-
-        document.getElementById('reset-btn').addEventListener('click', () => this.resetGame());
-        document.getElementById('start-btn').addEventListener('click', () => {
-            this.rows = parseInt(document.getElementById('rows').value);
-            this.cols = parseInt(document.getElementById('cols').value);
-            this.mines = parseInt(document.getElementById('mines').value);
-            this.diamonds = parseInt(document.getElementById('diamonds').value);
-            this.resetGame();
-        });
+    playSound(name) {
+        if (this.sounds[name]) {
+            this.sounds[name].play();
+        }
     }
 }
 
